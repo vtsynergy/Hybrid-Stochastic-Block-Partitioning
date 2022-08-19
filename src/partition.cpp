@@ -20,6 +20,7 @@ Graph partition::partition_round_robin(const Graph &graph, int rank, int num_pro
     NeighborList out_neighbors(target_num_vertices);
     int num_vertices = 0, num_edges = 0;
     std::unordered_map<int, int> translator;
+    std::vector<bool> self_edges;
     for (int i = rank; i < (int) graph.out_neighbors().size(); i += num_processes) {
         if (utils::insert(translator, i, num_vertices))
             num_vertices++;
@@ -32,6 +33,12 @@ Graph partition::partition_round_robin(const Graph &graph, int rank, int num_pro
                 utils::insert(out_neighbors, from, to);
                 utils::insert(in_neighbors, to, from);
                 num_edges++;
+                while (self_edges.size() < num_vertices) {
+                    self_edges.push_back(false);
+                }
+                if (from == to) {
+                    self_edges[from] = true;
+                }
             }
         }
     }
@@ -41,7 +48,7 @@ Graph partition::partition_round_robin(const Graph &graph, int rank, int num_pro
     }
     std::cout << "NOTE: rank " << rank << "/" << num_processes - 1 << " has N = " << num_vertices << " E = ";
     std::cout << num_edges << std::endl;
-    return Graph(out_neighbors, in_neighbors, num_vertices, num_edges, assignment);
+    return Graph(out_neighbors, in_neighbors, num_vertices, num_edges, self_edges, assignment);
 }
 
 Graph partition::partition_random(const Graph &graph, int rank, int num_processes, int target_num_vertices) {
@@ -49,6 +56,7 @@ Graph partition::partition_random(const Graph &graph, int rank, int num_processe
     NeighborList out_neighbors(target_num_vertices);
     int num_vertices = 0, num_edges = 0;
     std::unordered_map<int, int> translator;
+    std::vector<bool> self_edges;
     int seed = 1234;  // TODO: make this a command-line argument
     std::vector<int> vertices = utils::range<int>(0, graph.num_vertices());
     std::shuffle(vertices.begin(), vertices.end(), std::default_random_engine(seed));
@@ -69,6 +77,12 @@ Graph partition::partition_random(const Graph &graph, int rank, int num_processe
             utils::insert(out_neighbors, from, to);
             utils::insert(in_neighbors, to, from);
             num_edges++;
+            while (self_edges.size() < num_vertices) {
+                self_edges.push_back(false);
+            }
+            if (from == to) {
+                self_edges[from] = true;
+            }
         }
     }
     std::vector<int> assignment(num_vertices, -1);
@@ -77,7 +91,7 @@ Graph partition::partition_random(const Graph &graph, int rank, int num_processe
     }
     std::cout << "NOTE: rank " << rank << "/" << num_processes - 1 << " has N = " << num_vertices << " E = ";
     std::cout << num_edges << std::endl;
-    return Graph(out_neighbors, in_neighbors, num_vertices, num_edges, assignment);
+    return Graph(out_neighbors, in_neighbors, num_vertices, num_edges, self_edges, assignment);
 }
 
 Graph partition::partition_snowball(const Graph &graph, int rank, int num_processes, int target_num_vertices) {
@@ -85,6 +99,7 @@ Graph partition::partition_snowball(const Graph &graph, int rank, int num_proces
     NeighborList out_neighbors(target_num_vertices);
     int num_vertices = 0, num_edges = 0;
     std::unordered_map<int, int> translator;
+    std::vector<bool> self_edges;
     // Set up random number generator
     std::default_random_engine generator;
     std::uniform_int_distribution<int> distribution(0, graph.num_vertices() - 1);
@@ -138,6 +153,12 @@ Graph partition::partition_snowball(const Graph &graph, int rank, int num_proces
             utils::insert(out_neighbors, from, to);
             utils::insert(in_neighbors, to, from);
             num_edges++;
+            while (self_edges.size() < num_vertices) {
+                self_edges.push_back(false);
+            }
+            if (from == to) {
+                self_edges[from] = true;
+            }
         }
     }
     std::vector<int> assignment(num_vertices, -1);
@@ -146,5 +167,5 @@ Graph partition::partition_snowball(const Graph &graph, int rank, int num_proces
     }
     std::cout << "NOTE: rank " << rank << "/" << num_processes - 1 << " has N = " << num_vertices << " E = ";
     std::cout << num_edges << std::endl;
-    return Graph(out_neighbors, in_neighbors, num_vertices, num_edges, assignment);
+    return Graph(out_neighbors, in_neighbors, num_vertices, num_edges, self_edges, assignment);
 }

@@ -8,9 +8,9 @@ The SBP algorithm is adapted to C++ from the
 
 ## Notes
 
-- A sample build script is provided in `scripts/biuld.sh`.
+- A sample build script is provided in `scripts/build.sh`.
 - Sample run scripts are provided in `scripts/synthetic_experiment.sh` and `scripts/real_experiment.sh`.
-- A sample figure generating script is provided in `scripts/figures.py`
+- Sample figure generating scripts are provided in `scripts/figures_real.py` and `scripts/figures_synthetic.py`. 
 - A script for generating the synthetic datasets is provided in `SBMGraphGenerator/generate_graphs.sh`. 
 The graph generator is lightly adapted from [SBMGraphGenerator](https://github.com/vtsynergy/SBMGraphGenerator).
 - Synthetic datasets can be downloaded from the
@@ -21,7 +21,7 @@ information. In other words, the dataset file should only contain an edge list.
 `<parent>/<tag>/<overlap>Overlap_<var>BlockSizeVar/`, where `<parent>` is the contents of 
 `--directory`, and `<tag>` is in the form `<min_deg>_<max_deg>_<overlap>_<power_law_exponent>`.
 The dataset itself is expected to be named `<name>_<tag>_<overlap>Overlap_<var>BlockSizeVar_<size>_nodes.tsv`.
-  - For real-world datasets, everything but `<name>` and `<size>` can be set to `unk`.
+  - For real-world datasets, everything but `<name>` and `<size>` can be set to `unk`. `<size>` can be set to `-1`.
 - The current version of the code only supports unweighted directed graphs.
 - When the number of communities discovered is 1, the evaluation will output NMI as `nan`. This is
 a minor bug in the evaluation code; in such situations, the real value of NMI is 0.

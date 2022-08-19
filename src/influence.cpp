@@ -86,7 +86,7 @@ std::vector<double> conditional_distribution(const Graph &graph, const std::vect
         }
 //        std::cout << "modified assignment: ";
 //        utils::print<int>(modified_assignment);
-        Blockmodel blockmodel(block_number, graph.out_neighbors(), 0.5, modified_assignment);
+        Blockmodel blockmodel(block_number, graph, 0.5, modified_assignment);
 //        std::cout << "log_posterior_prob: " << blockmodel.log_posterior_probability() << " exp(log_p) = " << std::exp(blockmodel.log_posterior_probability()) << std::endl;
         if (mdl)
             distribution[block] = 0.0 - entropy::mdl(blockmodel, graph.num_vertices(), graph.num_edges());
@@ -136,7 +136,7 @@ std::vector<double> neighbor_conditional_distribution(const Graph &graph, const 
             }
             modified_assignment[i] = block_map[_block];
         }
-        Blockmodel blockmodel(block_number, graph.out_neighbors(), 0.5, modified_assignment);
+        Blockmodel blockmodel(block_number, graph, 0.5, modified_assignment);
         if (mdl)
             distribution.push_back(0.0 - entropy::mdl(blockmodel, graph.num_vertices(), graph.num_edges()));
         else  // use log posterior probability
@@ -509,6 +509,7 @@ Graph to_graph(const std::vector<std::vector<int>> &graph_edges) {
     int num_edges = (int) graph_edges.size();
     NeighborList out_neighbors;
     NeighborList in_neighbors;
+    std::vector<bool> self_edges;
     for (const std::vector<int> &edge : graph_edges) {
         int from = edge[0];
         int to = edge[1];
@@ -516,6 +517,12 @@ Graph to_graph(const std::vector<std::vector<int>> &graph_edges) {
         utils::insert_nodup(in_neighbors, to, from);
         int max_v = std::max(from + 1, to + 1);
         num_vertices = std::max(max_v, num_vertices);
+        while (self_edges.size() < num_vertices) {
+            self_edges.push_back(false);
+        }
+        if (from == to) {
+            self_edges[from] = true;
+        }
     }
     while (out_neighbors.size() < size_t(num_vertices)) {
         out_neighbors.push_back(std::vector<int>());
@@ -524,7 +531,7 @@ Graph to_graph(const std::vector<std::vector<int>> &graph_edges) {
         in_neighbors.push_back(std::vector<int>());
     }
     std::vector<int> assignment = utils::range<int>(0, num_vertices);
-    Graph graph(out_neighbors, in_neighbors, num_vertices, num_edges, assignment);
+    Graph graph(out_neighbors, in_neighbors, num_vertices, num_edges, self_edges, assignment);
     return graph;
 }
 
@@ -719,7 +726,7 @@ void stochastic_block_partition(Graph &graph, const std::string &tag = "test") {
     else
         omp_set_num_threads(omp_get_num_procs());
     std::cout << "num threads: " << omp_get_max_threads() << std::endl;
-    Blockmodel blockmodel(graph.num_vertices(), graph.out_neighbors(), 0.5);
+    Blockmodel blockmodel(graph.num_vertices(), graph, 0.5);
     auto t1 = std::chrono::high_resolution_clock::now();
     csv_row.push_back(compute_random_avg_practical_max_neighbor_influence(graph, blockmodel));
     auto t2 = std::chrono::high_resolution_clock::now() - t1;
@@ -734,7 +741,7 @@ void stochastic_block_partition(Graph &graph, const std::string &tag = "test") {
             std::cout << "Merging blocks down from " << blockmodel.getNum_blocks() << " to "
                       << blockmodel.getNum_blocks() - blockmodel.getNum_blocks_to_merge() << std::endl;
         }
-        blockmodel = block_merge::merge_blocks(blockmodel, graph.out_neighbors(), graph.num_edges());
+        blockmodel = block_merge::merge_blocks(blockmodel, graph, graph.num_edges());
         if (iteration == 0) {
             t1 = std::chrono::high_resolution_clock::now();
             csv_row.push_back(compute_random_avg_practical_max_neighbor_influence(graph, blockmodel));
@@ -773,7 +780,7 @@ void stochastic_block_partition_neighbor_influence_comparison(Graph &graph, cons
     else
         omp_set_num_threads(omp_get_num_procs());
     std::cout << "num threads: " << omp_get_max_threads() << std::endl;
-    Blockmodel blockmodel(graph.num_vertices(), graph.out_neighbors(), 0.5);
+    Blockmodel blockmodel(graph.num_vertices(), graph, 0.5);
     csv_row.push_back(compute_random_avg_practical_max_neighbor_influence(graph, blockmodel));
 //    csv_row.push_back(compute_influence(graph, blockmodel, false, true));
     std::cout << "Performing stochastic block blockmodeling on graph with " << graph.num_vertices() << " vertices "
@@ -785,7 +792,7 @@ void stochastic_block_partition_neighbor_influence_comparison(Graph &graph, cons
             std::cout << "Merging blocks down from " << blockmodel.getNum_blocks() << " to "
                       << blockmodel.getNum_blocks() - blockmodel.getNum_blocks_to_merge() << std::endl;
         }
-        blockmodel = block_merge::merge_blocks(blockmodel, graph.out_neighbors(), graph.num_edges());
+        blockmodel = block_merge::merge_blocks(blockmodel, graph, graph.num_edges());
         if (iteration == 0) {
             csv_row.push_back(compute_random_avg_practical_max_neighbor_influence(graph, blockmodel));
 //            csv_row.push_back(compute_influence(graph, blockmodel, false, true));
@@ -809,7 +816,7 @@ void stochastic_block_partition_neighbor_influence_comparison(Graph &graph, cons
 
 int main(int argc, char* argv[]) {
     args = Args(argc, argv);
-    Graph G = Graph::load(args);
+    Graph G = Graph::load();
 //    Graph G = to_graph(Graph1);
     stochastic_block_partition(G, args.tag);
 //    stochastic_block_partition_neighbor_influence_comparison(G, args.tag);

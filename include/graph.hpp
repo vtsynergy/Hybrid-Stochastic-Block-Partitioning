@@ -4,57 +4,38 @@
 #ifndef SBP_GRAPH_HPP
 #define SBP_GRAPH_HPP
 
-// #include <filesystem>
-// #include <fstream>
 #include <iostream>
-// #include <sstream>
 #include <string>
-// #include <limits>
 
-// #include <Eigen/Core>
-
-// #include "argparse/argparse.hpp"
-#include "args.hpp"
 #include "blockmodel/sparse/typedefs.hpp"
 #include "fs.hpp"
 #include "utils.hpp"
 
-// #include "sparse/boost_mapped_matrix.hpp"
-
-// typedef py::EigenDRef<Eigen::Matrix<int, Eigen::Dynamic, 2>> Matrix2Column;
-
-// typedef std::vector<std::vector<int>> VarLengthMatrix;
-
 // TODO: replace _out_neighbors and _in_neighbors with our DictTransposeMatrix
 class Graph {
 public:
+    explicit Graph(int num_vertices) {
+        this->_num_vertices = num_vertices;
+        this->_num_edges = 0;
+        this->_self_edges = utils::constant<bool>(num_vertices, false);
+        this->_assignment = utils::constant<int>(num_vertices, -1);
+        while (this->_out_neighbors.size() < size_t(num_vertices)) {
+            this->_out_neighbors.push_back(std::vector<int>());
+        }
+        while (this->_in_neighbors.size() < size_t(num_vertices)) {
+            this->_in_neighbors.push_back(std::vector<int>());
+        }
+    }
     Graph(NeighborList &out_neighbors, NeighborList &in_neighbors, int num_vertices, int num_edges,
+          const std::vector<bool> &self_edges = std::vector<bool>(),
           const std::vector<int> &assignment = std::vector<int>()) {
         this->_out_neighbors = out_neighbors;
         this->_in_neighbors = in_neighbors;
         this->_num_vertices = num_vertices;
         this->_num_edges = num_edges;
+        this->_self_edges = self_edges;
         this->_assignment = assignment;
-//        this->_high_degree_vertex = MapVector<bool>();
-        std::vector<int> vertex_degrees;
-        for (int vertex = 0; vertex < num_vertices; ++vertex) {
-            // TODO: check for self-edges
-            // Currently this is an approximation, since self-edges are double-counted
-            vertex_degrees.push_back(int(out_neighbors[vertex].size() + in_neighbors[vertex].size()));
-        }
-        std::vector<int> indices = utils::range<int>(0, num_vertices);
-        std::sort(indices.data(), indices.data() + indices.size(),  // sort in descending order
-                  [vertex_degrees](size_t i1, size_t i2) { return vertex_degrees[i1] > vertex_degrees[i2]; });
-        for (int index = 0; index < num_vertices; ++index) {
-            int vertex = indices[index];
-            if (index < 0.075 * num_vertices) {
-                this->_high_degree_vertices.push_back(vertex);
-//                this->_high_degree_vertex[vertex] = true;
-            } else {
-                this->_low_degree_vertices.push_back(vertex);
-//                this->_high_degree_vertex[vertex] = false;
-            }
-        }
+        this->sort_vertices();
     }
     Graph() = default;
     /// Loads the graph. Assumes the file is saved in the following directory:
@@ -63,16 +44,26 @@ public:
     /// <args.type>_<args.overlap>Overlap_<args.blocksizevar>BlockSizeVar_<args.numvertices>_nodes.tsv
     /// Assumes the true assignment file is named:
     /// <args.type>_<args.overlap>Overlap_<args.blocksizevar>BlockSizeVar_<args.numvertices>_trueBlockmodel.tsv
-    static Graph load(Args &args);
+    static Graph load();
+    /// Loads the graph if it's in a matrix market format.
+    static Graph load_matrix_market(std::vector<std::vector<std::string>> &csv_contents);
+    /// Loads the graph if it's in a text format: a list of "from to" string pairs.
+    static Graph load_text(std::vector<std::vector<std::string>> &csv_contents);
     //============================================
     // GETTERS & SETTERS
     //============================================
+    /// Adds an edge to the graph
+    void add_edge(int from, int to);
     /// Returns a const reference to the assignmnet
     const std::vector<int> &assignment() const { return this->_assignment; }
+    /// Sets the assignment vector for the given graph
+    void assignment(const std::vector<int> &assignment_vector) { this->_assignment = assignment_vector; }
     /// Returns the block/community assignment of vertex `v`
     int assignment(int v) const { return this->_assignment[v]; }
     /// Sets the assignment of vertex `v` to block `b`
     void assign(int v, int b) { this->_assignment[v] = b; }
+    /// Returns a vector containing the vertex degrees for every vertex in the graph
+    std::vector<int> degrees() const;
     /// Returns a const reference to the in neighbors
     const NeighborList &in_neighbors() const { return this->_in_neighbors; }
     /// Returns a const reference to the in neighbors of vertex `v`
@@ -81,8 +72,6 @@ public:
     const std::vector<int> &high_degree_vertices() const { return this->_high_degree_vertices; }
     /// Returns the list of low degree vertices
     const std::vector<int> &low_degree_vertices() const { return this->_low_degree_vertices; }
-    /// Returns true if vertex is a high-degree vertex
-//    bool is_high_degree_vertex(int v) const { return this->_high_degree_vertex.at(v); }
     /// Calculates the modularity of this graph given a particular vertex-to-block `assignment`
     double modularity(const std::vector<int> &assignment) const;
     /// Returns the number of edges in this graph
@@ -93,6 +82,8 @@ public:
     const NeighborList &out_neighbors() const { return this->_out_neighbors; }
     /// Returns a const reference to the out neighbors of vertex `v`
     const std::vector<int> &out_neighbors(int v) const { return this->_out_neighbors[v]; }
+    /// Sorts the vertices into low and high degree vertices
+    void sort_vertices();
 private:
     /// For every vertex, stores the community they belong to.
     /// If assignment[v] = -1, then the community of v is not known
@@ -111,12 +102,14 @@ private:
     int _num_vertices;
     /// The number of edges in the graph
     int _num_edges;
+    /// Stores true if a vertex has self edges, false otherwise
+    std::vector<bool> _self_edges;
     /// Parses a directed graph from csv contents
     static void parse_directed(NeighborList &in_neighbors, NeighborList &out_neighbors, int &num_vertices,
-                               std::vector<std::vector<std::string>> &contents);
+                               std::vector<bool> &self_edges, std::vector<std::vector<std::string>> &contents);
     /// Parses an undirected graph from csv contents
     static void parse_undirected(NeighborList &in_neighbors, NeighborList &out_neighbors, int &num_vertices,
-                                 std::vector<std::vector<std::string>> &contents);
+                                 std::vector<bool> &self_edges, std::vector<std::vector<std::string>> &contents);
 };
 
 #endif // SBP_GRAPH_HPP

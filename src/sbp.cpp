@@ -33,7 +33,9 @@ void write_results(float iteration, std::ofstream &file, const Graph &graph, con
 void add_intermediate(float iteration, const Graph &graph, const Blockmodel &blockmodel, double mdl) {
     double normalized_mdl_v1 = entropy::normalize_mdl_v1(mdl, graph.num_edges());
     double normalized_mdl_v2 = entropy::normalize_mdl_v2(mdl, graph.num_vertices(), graph.num_edges());
-    double modularity = graph.modularity(blockmodel.block_assignment());
+    double modularity = -1;
+    if (iteration == -1)
+        modularity = graph.modularity(blockmodel.block_assignment());
     double interblock_edges = blockmodel.interblock_edges();
     // fedisableexcept(FE_INVALID | FE_OVERFLOW);
     double block_size_variation = blockmodel.block_size_variation();
@@ -47,11 +49,13 @@ void add_intermediate(float iteration, const Graph &graph, const Blockmodel &blo
     intermediate.interblock_edges = interblock_edges;
     intermediate.block_size_variation = block_size_variation;
     intermediate.mcmc_iterations = finetune::MCMC_iterations;
+    intermediate.mcmc_time = finetune::MCMC_time;
     intermediate_results.push_back(intermediate);
     std::cout << "Iteration " << iteration << " MDL: " << mdl << " v1 normalized: " << normalized_mdl_v1
               << " v2 normalized: " << normalized_mdl_v2 << " modularity: " << modularity
               << " interblock edge %: " << interblock_edges << " block size variation: " << block_size_variation
-              << " MCMC iterations: " << finetune::MCMC_iterations << std::endl;
+              << " MCMC iterations: " << finetune::MCMC_iterations << " MCMC time: "
+              << finetune::MCMC_time << std::endl;
 }
 
 Blockmodel stochastic_block_partition(Graph &graph, Args &args) {
@@ -60,32 +64,38 @@ Blockmodel stochastic_block_partition(Graph &graph, Args &args) {
     else
         omp_set_num_threads(omp_get_num_procs());
     std::cout << "num threads: " << omp_get_max_threads() << std::endl;
-    Blockmodel blockmodel(graph.num_vertices(), graph.out_neighbors(), float(BLOCK_REDUCTION_RATE));
+    Blockmodel blockmodel(graph.num_vertices(), graph, float(BLOCK_REDUCTION_RATE));
     double initial_mdl = entropy::mdl(blockmodel, graph.num_vertices(), graph.num_edges());
     add_intermediate(0, graph, blockmodel, initial_mdl);
     BlockmodelTriplet blockmodel_triplet = BlockmodelTriplet();
     float iteration = 0;
-    while (!done_blockmodeling(blockmodel, blockmodel_triplet, 0)) {
+    while (!done_blockmodeling(blockmodel, blockmodel_triplet)) {
         if (blockmodel.getNum_blocks_to_merge() != 0) {
             std::cout << "Merging blocks down from " << blockmodel.getNum_blocks() << " to " 
                       << blockmodel.getNum_blocks() - blockmodel.getNum_blocks_to_merge() << std::endl;
         }
-        blockmodel = block_merge::merge_blocks(blockmodel, graph.out_neighbors(), graph.num_edges());
+        blockmodel = block_merge::merge_blocks(blockmodel, graph, graph.num_edges());
         if (iteration < 1) {
             double mdl = entropy::mdl(blockmodel, graph.num_vertices(), graph.num_edges());
             add_intermediate(0.5, graph, blockmodel, mdl);
         }
         std::cout << "Starting MCMC vertex moves" << std::endl;
-        if (args.algorithm == "async_gibbs" && iteration < float(args.asynciterations))
+        double start = MPI_Wtime();
+        if (args.algorithm == "async_gibbs_old" && iteration < float(args.asynciterations))
             blockmodel = finetune::asynchronous_gibbs(blockmodel, graph, blockmodel_triplet);
+        else if (args.algorithm == "async_gibbs" && iteration < float(args.asynciterations))
+            blockmodel = finetune::asynchronous_gibbs_v2(blockmodel, graph, blockmodel_triplet);
         else if (args.algorithm == "hybrid_mcmc")
             blockmodel = finetune::hybrid_mcmc(blockmodel, graph, blockmodel_triplet);
         else // args.algorithm == "metropolis_hastings"
             blockmodel = finetune::metropolis_hastings(blockmodel, graph, blockmodel_triplet);
 //        iteration++;
+        finetune::MCMC_time += MPI_Wtime() - start;
         add_intermediate(++iteration, graph, blockmodel, blockmodel.getOverall_entropy());
         blockmodel = blockmodel_triplet.get_next_blockmodel(blockmodel);
     }
+    // only last iteration result will calculate expensive modularity
+    add_intermediate(-1, graph, blockmodel, blockmodel.getOverall_entropy());
     return blockmodel;
 }
 

@@ -23,7 +23,11 @@
  ******************/
 namespace finetune {
 
+/// The total number of MCMC iterations completed, to be dynamically updated during execution.
 extern int MCMC_iterations;
+
+/// The total amount of time spent performing MCMC iterations, to be dynamically updated during execution.
+extern double MCMC_time;
 
 typedef struct vertex_move_t {
     double delta_entropy;
@@ -32,6 +36,20 @@ typedef struct vertex_move_t {
     int proposed_block;
 } VertexMove;
 
+//struct Neighbors {
+//    EdgeWeights out_neighbors;
+//    EdgeWeights in_neighbors;
+//};
+
+struct VertexMove_v2 {
+    double delta_entropy;
+    bool did_move;
+    int vertex;
+    int proposed_block;
+    EdgeWeights out_edges;
+    EdgeWeights in_edges;
+};
+
 //static const int MOVING_AVG_WINDOW = 3;      // Window for calculating change in entropy
 //static const double SEARCH_THRESHOLD = 5e-4; // Threshold before golden ratio is established
 //static const double GOLDEN_THRESHOLD = 1e-4; // Threshold after golden ratio is established
@@ -39,9 +57,11 @@ static const int MAX_NUM_ITERATIONS = 100;   // Maximum number of finetuning ite
 
 bool accept(double delta_entropy, double hastings_correction);
 
-Blockmodel &asynchronous_gibbs(Blockmodel &blockmodel, Graph &graph, BlockmodelTriplet &blockmodels);
+Blockmodel &asynchronous_gibbs(Blockmodel &blockmodel, const Graph &graph, BlockmodelTriplet &blockmodels);
 
-EdgeWeights block_edge_weights(const std::vector<int> &block_assignment, EdgeWeights &neighbor_weights);
+Blockmodel &asynchronous_gibbs_v2(Blockmodel &blockmodel, const Graph &graph, BlockmodelTriplet &blockmodels);
+
+EdgeWeights block_edge_weights(const std::vector<int> &block_assignment, const EdgeWeights &neighbor_weights);
 
 /// Returns the potential changes to the blockmodel if the vertex with `out_edges` and `in_edges` moves from
 /// `current_block` into `proposed_block`.
@@ -70,6 +90,11 @@ VertexMove eval_vertex_move(int vertex, int current_block, utils::ProposalAndEdg
                             const Blockmodel &blockmodel, const Graph &graph, EdgeWeights &out_edges,
                             EdgeWeights &in_edges);
 
+/// Evaluates a potential move of `vertex` from `current_block` to `proposal.proposal` using MCMC logic.
+VertexMove_v2 eval_vertex_move_v2(int vertex, int current_block, utils::ProposalAndEdgeCounts proposal,
+                                  const Blockmodel &blockmodel, const Graph &graph, EdgeWeights &out_edges,
+                                  EdgeWeights &in_edges);
+
 /// Evaluates a potential move of `vertex` from `current_block` to `proposal.proposal` using MCMC logic without using
 /// blockmodel deltas.
 VertexMove eval_vertex_move_nodelta(int vertex, int current_block, utils::ProposalAndEdgeCounts proposal,
@@ -78,12 +103,12 @@ VertexMove eval_vertex_move_nodelta(int vertex, int current_block, utils::Propos
 
 /// Runs the synchronous Metropolis Hastings algorithm on the high-degree vertices of `blockmodel`, and
 /// Asynchronous Gibbs on the rest.
-Blockmodel &hybrid_mcmc(Blockmodel &blockmodel, Graph &graph, BlockmodelTriplet &blockmodels);
+Blockmodel &hybrid_mcmc(Blockmodel &blockmodel, const Graph &graph, BlockmodelTriplet &blockmodels);
 
 [[maybe_unused]] Blockmodel &finetune_assignment(Blockmodel &blockmodel, Graph &graph);
 
 /// Runs the synchronous Metropolis Hastings algorithm on `blockmodel`.
-Blockmodel &metropolis_hastings(Blockmodel &blockmodel, Graph &graph, BlockmodelTriplet &blockmodels);
+Blockmodel &metropolis_hastings(Blockmodel &blockmodel, const Graph &graph, BlockmodelTriplet &blockmodels);
 
 /// Moves `vertex` from `current_block` to `proposal.proposal` using MCMC logic.
 VertexMove move_vertex(int vertex, int current_block, utils::ProposalAndEdgeCounts proposal, Blockmodel &blockmodel,
@@ -102,6 +127,9 @@ VertexMove propose_move(Blockmodel &blockmodel, int vertex, const Graph &graph);
 
 /// Proposes a new Asynchronous Gibbs vertex move.
 VertexMove propose_gibbs_move(const Blockmodel &blockmodel, int vertex, const Graph &graph);
+
+/// Proposes a new Asynchronous Gibbs vertex move.
+VertexMove_v2 propose_gibbs_move_v2(const Blockmodel &blockmodel, int vertex, const Graph &graph);
 
 //namespace directed {
 //

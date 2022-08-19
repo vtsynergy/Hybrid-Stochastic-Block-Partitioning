@@ -9,8 +9,8 @@ std::string utils::build_filepath() {
     filepath_stream << "BlockSizeVar_" << args.numvertices << "_nodes";
     // TODO: Add capability to process multiple "streaming" graph parts
     std::string filepath = filepath_stream.str();
-    if (!fs::exists(filepath + ".tsv")) {
-        std::cerr << "File doesn't exist: " << filepath + ".tsv" << std::endl;
+    if (!fs::exists(filepath + ".tsv") && !fs::exists(filepath + ".mtx")) {
+        std::cerr << "File doesn't exist: " << filepath + ".tsv/.mtx" << std::endl;
         exit(-1);
     }
     return filepath;

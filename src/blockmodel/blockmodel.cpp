@@ -46,21 +46,10 @@ double Blockmodel::difficulty_score() const {
     return (2.0 * norm_variance * interblock_edges) / (norm_variance + interblock_edges);
 }
 
-std::vector<int> Blockmodel::sort_indices(const std::vector<double> &unsorted) {
-    // initialize original index locations
-    std::vector<int> indices = utils::range<int>(0, unsorted.size());
-
-    // sort indexes based on comparing values in unsorted
-    std::sort(indices.data(), indices.data() + indices.size(),
-              [unsorted](size_t i1, size_t i2) { return unsorted[i1] < unsorted[i2]; });
-
-    return indices;
-}
-
 // TODO: move to block_merge.cpp
 void Blockmodel::carry_out_best_merges(const std::vector<double> &delta_entropy_for_each_block,
                                        const std::vector<int> &best_merge_for_each_block) {
-    std::vector<int> best_merges = sort_indices(delta_entropy_for_each_block);
+    std::vector<int> best_merges = utils::sort_indices(delta_entropy_for_each_block);
     std::vector<int> block_map = utils::range<int>(0, this->num_blocks);
     int num_merged = 0;
     int counter = 0;
@@ -88,8 +77,7 @@ void Blockmodel::carry_out_best_merges(const std::vector<double> &delta_entropy_
     this->num_blocks -= this->num_blocks_to_merge;
 }
 
-Blockmodel Blockmodel::clone_with_true_block_membership(NeighborList &neighbors,
-                                                        std::vector<int> &true_block_membership) {
+Blockmodel Blockmodel::clone_with_true_block_membership(const Graph &graph, std::vector<int> &true_block_membership) {
     int num_blocks = 0;
     std::vector<int> uniques = utils::constant<int>(true_block_membership.size(), 0);
     for (uint i = 0; i < true_block_membership.size(); ++i) {
@@ -101,7 +89,7 @@ Blockmodel Blockmodel::clone_with_true_block_membership(NeighborList &neighbors,
             num_blocks++;
         }
     }
-    return Blockmodel(num_blocks, neighbors, this->block_reduction_rate, true_block_membership);
+    return Blockmodel(num_blocks, graph, this->block_reduction_rate, true_block_membership);
 }
 
 Blockmodel Blockmodel::copy() {
@@ -116,16 +104,16 @@ Blockmodel Blockmodel::copy() {
     return blockmodel_copy;
 }
 
-Blockmodel Blockmodel::from_sample(int num_blocks, NeighborList &neighbors, std::vector<int> &sample_block_membership,
+Blockmodel Blockmodel::from_sample(int num_blocks, const Graph &graph, std::vector<int> &sample_block_membership,
                                  std::map<int, int> &mapping, float block_reduction_rate) {
     // Fill in initial block assignment
-    std::vector<int> _block_assignment = utils::constant<int>(neighbors.size(), -1);
+    std::vector<int> _block_assignment = utils::constant<int>(graph.num_vertices(), -1);  // neighbors.size(), -1);
     for (const auto &item : mapping) {
         _block_assignment[item.first] = sample_block_membership[item.second];
     }
     // Every unassigned block gets assigned to the next block number
     int next_block = num_blocks;
-    for (uint vertex = 0; vertex < neighbors.size(); ++vertex) {
+    for (uint vertex = 0; vertex < graph.num_vertices(); ++vertex) {  // neighbors.size(); ++vertex) {
         if (_block_assignment[vertex] >= 0) {
             continue;
         }
@@ -133,13 +121,13 @@ Blockmodel Blockmodel::from_sample(int num_blocks, NeighborList &neighbors, std:
         next_block++;
     }
     // Every previously unassigned block gets assigned to the block it's most connected to
-    for (uint vertex = 0; vertex < neighbors.size(); ++vertex) {
+    for (uint vertex = 0; vertex < graph.num_vertices(); ++vertex) {  // neighbors.size(); ++vertex) {
         if (_block_assignment[vertex] < num_blocks) {
             continue;
         }
         std::vector<int> block_counts = utils::constant<int>(num_blocks, 0);
         // TODO: this can only handle unweighted graphs
-        std::vector<int> vertex_neighbors = neighbors[vertex];
+        std::vector<int> vertex_neighbors = graph.out_neighbors(vertex);  // [vertex];
         for (uint i = 0; i < vertex_neighbors.size(); ++i) {
             int neighbor = vertex_neighbors[i];
             int neighbor_block = _block_assignment[neighbor];
@@ -151,7 +139,7 @@ Blockmodel Blockmodel::from_sample(int num_blocks, NeighborList &neighbors, std:
         // block_counts.maxCoeff(&new_block);
         _block_assignment[vertex] = new_block;
     }
-    return Blockmodel(num_blocks, neighbors, block_reduction_rate, _block_assignment);
+    return Blockmodel(num_blocks, graph, block_reduction_rate, _block_assignment);
 }
 
 //void Blockmodel::initialize_edge_counts(const NeighborList &neighbors) {
@@ -196,7 +184,7 @@ Blockmodel Blockmodel::from_sample(int num_blocks, NeighborList &neighbors, std:
 //    std::cout << omp_get_thread_num() << "Matrix creation walltime = " << end - start << std::endl;
 //}
 
-void Blockmodel::initialize_edge_counts(const NeighborList &neighbors) {  // Parallel version!
+void Blockmodel::initialize_edge_counts(const Graph &graph) {  // Parallel version!
 //    double start = omp_get_wtime();
 //    std::cout << "OLD BLOCKMODEL BOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO" << std::endl;
     /// TODO: this recreates the matrix (possibly unnecessary)
@@ -213,25 +201,25 @@ void Blockmodel::initialize_edge_counts(const NeighborList &neighbors) {  // Par
     // Initialize the blockmodel
     // TODO: find a way to parallelize the matrix filling step
     #pragma omp parallel default(none) \
-    shared(blockmatrix, block_degrees_in, block_degrees_out, block_degrees, neighbors, std::cout, args)
+    shared(blockmatrix, block_degrees_in, block_degrees_out, block_degrees, graph, std::cout, args)
     {
         int tid = omp_get_thread_num();
         int num_threads = omp_get_num_threads();
         int my_num_blocks = ceil(double(this->num_blocks) / double(num_threads));
         int start = my_num_blocks * tid;
         int end = start + my_num_blocks;
-        for (uint vertex = 0; vertex < neighbors.size(); ++vertex) {
-            std::vector<int> vertex_neighbors = neighbors[vertex];
-            if (vertex_neighbors.empty()) {
-                continue;
-            }
+        for (uint vertex = 0; vertex < graph.num_vertices(); ++vertex) {
+//            std::vector<int> vertex_neighbors = graph.out_neighbors(vertex);  // neighbors[vertex];
+//            if (vertex_neighbors.empty()) {
+//                continue;
+//            }
             int block = this->_block_assignment[vertex];
-//            std::cout << "vertex = " << vertex << " and block = " << block << std::endl;
             if (block < start || block >= end)  // only modify blocks this thread is responsible for
                 continue;
-            for (size_t i = 0; i < vertex_neighbors.size(); ++i) {
+            for (int neighbor : graph.out_neighbors(int(vertex))) {  // vertex_neighbors) {
+//                size_t i = 0; i < vertex_neighbors.size(); ++i) {
                 // Get count
-                int neighbor = vertex_neighbors[i];
+//                int neighbor = vertex_neighbors[i];
                 int neighbor_block = this->_block_assignment[neighbor];
                 // TODO: change this once code is updated to support weighted graphs
                 int weight = 1;
@@ -240,39 +228,20 @@ void Blockmodel::initialize_edge_counts(const NeighborList &neighbors) {  // Par
                 blockmatrix->add(block, neighbor_block, weight);
                 // Update degrees
                 block_degrees_out[block] += weight;
-                // #pragma omp atomic
-                // block_degrees_in[neighbor_block] += weight;
                 block_degrees[block] += weight;
-                // if (block != neighbor_block) {
-                //     #pragma omp atomic
-                //     block_degrees[neighbor_block] += weight;
-                // }
+//            }
             }
-        }
-        if (args.transpose) {  // Update the transpose matrix
-            #pragma omp barrier
-            for (uint vertex = 0; vertex < neighbors.size(); ++vertex) {
-                std::vector<int> vertex_neighbors = neighbors[vertex];
-                if (vertex_neighbors.empty()) {
-                    continue;
-                }
-                int block = this->_block_assignment[vertex];
-                for (size_t i = 0; i < vertex_neighbors.size(); ++i) {
-                    int neighbor = vertex_neighbors[i];
-                    int neighbor_block = this->_block_assignment[neighbor];
-                    if (neighbor_block < start || neighbor_block >= end)  // only modify blocks this thread is responsible for
-                        continue;
-                    // TODO: change this once code is updated to support weighted graphs
-                    int weight = 1;
-                    // int weight = vertex_neighbors[i];
-                    // Update blockmodel
+            for (int neighbor : graph.in_neighbors(int(vertex))) {
+                int neighbor_block = this->_block_assignment[neighbor];
+                int weight = 1;
+                if (args.transpose) {
                     std::shared_ptr<DictTransposeMatrix> blockmatrix_dtm = std::dynamic_pointer_cast<DictTransposeMatrix>(blockmatrix);
-                    blockmatrix_dtm->add_transpose(block, neighbor_block, weight);
-                    // Update degrees
-                    block_degrees_in[neighbor_block] += weight;
-                    if (block != neighbor_block) {
-                        block_degrees[neighbor_block] += weight;
-                    }
+                    blockmatrix_dtm->add_transpose(neighbor_block, block, weight);
+                }
+                // Update degrees
+                block_degrees_in[block] += weight;
+                if (block != neighbor_block) {
+                    block_degrees[block] += weight;
                 }
             }
         }
@@ -307,6 +276,7 @@ double Blockmodel::log_posterior_probability() const {
     for (uint i = 0; i < values.size(); ++i) {
         if (degrees_in[i] == 0.0 || degrees_out[i] == 0.0) {
             std::cout << "value: " << values[i] << " degree_in: " << degrees_in[i] << " degree_out: " << degrees_out[i] << std::endl;
+            exit(-1000);
         }
     }
     std::vector<double> temp = values * utils::nat_log<double>(
@@ -418,8 +388,8 @@ void Blockmodel::update_edge_counts(int current_block, int proposed_block, Spars
                                            updates.block_col, updates.proposal_col);
 }
 
-bool Blockmodel::validate(const NeighborList &out_neighbors) {
-    Blockmodel correct(this->num_blocks, out_neighbors, this->block_reduction_rate, this->_block_assignment);
+bool Blockmodel::validate(const Graph &graph) {
+    Blockmodel correct(this->num_blocks, graph, this->block_reduction_rate, this->_block_assignment);
 
     for (int row = 0; row < this->num_blocks; ++row) {
         for (int col = 0; col < this->num_blocks; ++col) {

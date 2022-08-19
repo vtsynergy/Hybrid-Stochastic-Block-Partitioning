@@ -24,6 +24,7 @@ struct Intermediate {
     double interblock_edges;
     double block_size_variation;
     int mcmc_iterations;
+    double mcmc_time;
 };
 
 std::vector<Intermediate> get_intermediates();

@@ -35,7 +35,7 @@ TEST_F(BlockmodelTest, MoveVertexWithDenseEdgeCountUpdatesIsCorrect) {
                                 << " using assignment, value = " << val2;
         }
     }
-    B.validate(graph.out_neighbors());
+    B.validate(graph);
 }
 
 TEST_F(BlockmodelTest, MoveVertexWithSparseEdgeCountUpdatesIsCorrect) {
@@ -49,7 +49,7 @@ TEST_F(BlockmodelTest, MoveVertexWithSparseEdgeCountUpdatesIsCorrect) {
                                 << " using assignment, value = " << val2;
         }
     }
-    B.validate(graph.out_neighbors());
+    B.validate(graph);
 }
 
 TEST_F(BlockmodelTest, MoveVertexWithBlockmodelDeltasIsCorrect) {
@@ -63,7 +63,7 @@ TEST_F(BlockmodelTest, MoveVertexWithBlockmodelDeltasIsCorrect) {
                                 << " using assignment, value = " << val2;
         }
     }
-    B.validate(graph.out_neighbors());
+    B.validate(graph);
 }
 
 TEST_F(BlockmodelComplexTest, MoveVertexWithDenseEdgeCountUpdatesIsCorrect) {
@@ -77,7 +77,7 @@ TEST_F(BlockmodelComplexTest, MoveVertexWithDenseEdgeCountUpdatesIsCorrect) {
                                 << " using assignment, value = " << val2;
         }
     }
-    B.validate(graph.out_neighbors());
+    B.validate(graph);
 }
 
 TEST_F(BlockmodelComplexTest, MoveVertexWithSparseEdgeCountUpdatesIsCorrect) {
@@ -91,7 +91,7 @@ TEST_F(BlockmodelComplexTest, MoveVertexWithSparseEdgeCountUpdatesIsCorrect) {
                                 << " using assignment, value = " << val2;
         }
     }
-    B.validate(graph.out_neighbors());
+    B.validate(graph);
 }
 
 TEST_F(BlockmodelComplexTest, MoveVertexWithBlockmodelDeltasIsCorrect) {
@@ -105,7 +105,7 @@ TEST_F(BlockmodelComplexTest, MoveVertexWithBlockmodelDeltasIsCorrect) {
                                 << " using assignment, value = " << val2;
         }
     }
-    B.validate(graph.out_neighbors());
+    B.validate(graph);
 }
 
 TEST_F(BlockmodelComplexTest, MoveVertexWithBlockmodelDeltasAndOnTheFlyBlockDegreesIsCorrect) {
@@ -119,5 +119,5 @@ TEST_F(BlockmodelComplexTest, MoveVertexWithBlockmodelDeltasAndOnTheFlyBlockDegr
                                 << " using assignment, value = " << val2;
         }
     }
-    B.validate(graph.out_neighbors());
+    B.validate(graph);
 }

@@ -90,6 +90,16 @@ template <typename T> inline T sum(const std::vector<T> &vector) {
     return result;
 }
 
+/// Sorts the indices of an array in descending order according to the values of the array
+inline std::vector<int> sort_indices(const std::vector<double> &unsorted) {
+    // initialize original index locations
+    std::vector<int> indices = utils::range<int>(0, unsorted.size());
+    // sort indexes based on comparing values in unsorted
+    std::sort(indices.data(), indices.data() + indices.size(),
+              [unsorted](size_t i1, size_t i2) { return unsorted[i1] < unsorted[i2]; });
+    return indices;
+}
+
 /// Returns the sum of the elements in a vector, where sum and vector types are different.
 template <typename T, typename Y> inline T sum(const MapVector<Y> &vector) {
     T result = 0;

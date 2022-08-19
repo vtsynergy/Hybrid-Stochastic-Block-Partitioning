@@ -16,7 +16,7 @@ DIR="<graph_directory>"
 
 /usr/bin/time -v $EXE --threads 64 -n $size -d $DIR --batches 1 -a $algorithm --transpose -o $overlap \
               -b $blocksizevar --type $graphprops --tag "${graphprops}_${numasync}_${run}" \
-              --approximate --asynciterations ${numasync} --csv "synthetic_eval"
+              --approximate --asynciterations ${numasync} --csv "./synthetic_results"
 
 if [ $run -lt 5 ] ; then
     run=$(( $run + 1 ))

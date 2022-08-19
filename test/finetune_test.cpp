@@ -21,7 +21,7 @@ protected:
     void SetUp() override {
         ToyExample::SetUp();
         std::vector<int> assignment3 = { 0, 0, 0, 1, 2, 3, 3, 4, 5, 1, 5 };
-        B3 = Blockmodel(6, graph.out_neighbors(), 0.5, assignment3);
+        B3 = Blockmodel(6, graph, 0.5, assignment3);
 //        Deltas[std::make_pair(0, 0)] = 1;
 //        Deltas[std::make_pair(0, 1)] = 0;
 //        Deltas[std::make_pair(0, 2)] = 1;

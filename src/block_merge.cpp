@@ -275,7 +275,7 @@ void edge_count_updates_sparse(ISparseMatrix *blockmodel, int current_block, int
     updates.proposal_col[proposed_block] += count_out;
 }
 
-Blockmodel &merge_blocks(Blockmodel &blockmodel, const NeighborList &out_neighbors, int num_edges) {
+Blockmodel &merge_blocks(Blockmodel &blockmodel, const Graph &graph, int num_edges) {
     // TODO: add block merge timings to evaluation
     int num_blocks = blockmodel.getNum_blocks();
     std::vector<int> best_merge_for_each_block = utils::constant<int>(num_blocks, -1);
@@ -284,7 +284,8 @@ Blockmodel &merge_blocks(Blockmodel &blockmodel, const NeighborList &out_neighbo
     std::vector<int> block_assignment = utils::range<int>(0, num_blocks);
     // TODO: keep track of already proposed merges, do not re-process those
     int num_avoided = 0;  // number of avoided/skipped calculations
-#pragma omp parallel for schedule(dynamic) reduction( + : num_avoided)
+    #pragma omp parallel for schedule(dynamic) reduction( + : num_avoided) default(none) \
+    shared(num_blocks, num_edges, blockmodel, block_assignment, delta_entropy_for_each_block, best_merge_for_each_block)
     for (int current_block = 0; current_block < num_blocks; ++current_block) {
         std::unordered_map<int, bool> past_proposals;
         for (int i = 0; i < NUM_AGG_PROPOSALS_PER_BLOCK; ++i) {
@@ -305,7 +306,7 @@ Blockmodel &merge_blocks(Blockmodel &blockmodel, const NeighborList &out_neighbo
     else
         carry_out_best_merges_advanced(blockmodel, delta_entropy_for_each_block, best_merge_for_each_block,
                                        num_edges);
-    blockmodel.initialize_edge_counts(out_neighbors);
+    blockmodel.initialize_edge_counts(graph);
     return blockmodel;
 }
 
