@@ -81,10 +81,8 @@ Blockmodel stochastic_block_partition(Graph &graph, Args &args) {
         }
         std::cout << "Starting MCMC vertex moves" << std::endl;
         double start = MPI_Wtime();
-        if (args.algorithm == "async_gibbs_old" && iteration < float(args.asynciterations))
+        if (args.algorithm == "async_gibbs" && iteration < float(args.asynciterations))
             blockmodel = finetune::asynchronous_gibbs(blockmodel, graph, blockmodel_triplet);
-        else if (args.algorithm == "async_gibbs" && iteration < float(args.asynciterations))
-            blockmodel = finetune::asynchronous_gibbs_v2(blockmodel, graph, blockmodel_triplet);
         else if (args.algorithm == "hybrid_mcmc")
             blockmodel = finetune::hybrid_mcmc(blockmodel, graph, blockmodel_triplet);
         else // args.algorithm == "metropolis_hastings"

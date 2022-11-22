@@ -49,56 +49,6 @@ Blockmodel &asynchronous_gibbs(Blockmodel &blockmodel, const Graph &graph, Block
             // Block assignment used to re-create the Blockmodel after each batch to improve mixing time of
             // asynchronous Gibbs sampling
             std::vector<int> block_assignment(blockmodel.block_assignment());
-            #pragma omp parallel for schedule(dynamic) default(none) \
-            shared(start, end, blockmodel, graph, vertex_moves, delta_entropy, block_assignment)
-            for (int vertex = start; vertex < end; ++vertex) {
-                VertexMove proposal = propose_gibbs_move(blockmodel, vertex, graph);
-                if (proposal.did_move) {
-                    vertex_moves++;
-                    delta_entropy += proposal.delta_entropy;
-                    block_assignment[vertex] = proposal.proposed_block;
-                }
-            }
-            blockmodel = Blockmodel(blockmodel.getNum_blocks(), graph, blockmodel.getBlock_reduction_rate(),
-                                    block_assignment);
-        }
-        delta_entropies.push_back(delta_entropy);
-        std::cout << "Itr: " << iteration << ", number of vertex moves: " << vertex_moves << ", delta S: ";
-        std::cout << delta_entropy / initial_entropy << std::endl;
-        total_vertex_moves += vertex_moves;
-        MCMC_iterations++;
-        // Early stopping
-        if (early_stop(iteration, blockmodels, initial_entropy, delta_entropies)) {
-            break;
-        }
-    }
-    blockmodel.setOverall_entropy(entropy::mdl(blockmodel, graph.num_vertices(), graph.num_edges()));
-    std::cout << "Total number of vertex moves: " << total_vertex_moves << ", overall entropy: ";
-    std::cout << blockmodel.getOverall_entropy() << std::endl;
-    return blockmodel;
-}
-
-Blockmodel &asynchronous_gibbs_v2(Blockmodel &blockmodel, const Graph &graph, BlockmodelTriplet &blockmodels) {
-    std::cout << "Asynchronous Gibbs iteration" << std::endl;
-    if (blockmodel.getNum_blocks() == 1) {
-        return blockmodel;
-    }
-    std::vector<double> delta_entropies;
-    int total_vertex_moves = 0;
-    blockmodel.setOverall_entropy(entropy::mdl(blockmodel, graph.num_vertices(), graph.num_edges()));
-    double initial_entropy = blockmodel.getOverall_entropy();
-
-    for (int iteration = 0; iteration < MAX_NUM_ITERATIONS; ++iteration) {
-        int vertex_moves = 0;
-        double delta_entropy = 0.0;
-        double num_batches = args.batches;
-        int batch_size = int(ceil(graph.num_vertices() / num_batches));
-        for (int batch = 0; batch < graph.num_vertices() / batch_size; ++batch) {
-            int start = batch * batch_size;
-            int end = std::min(graph.num_vertices(), (batch + 1) * batch_size);
-            // Block assignment used to re-create the Blockmodel after each batch to improve mixing time of
-            // asynchronous Gibbs sampling
-            std::vector<int> block_assignment(blockmodel.block_assignment());
             std::vector<VertexMove_v2> moves(graph.num_vertices());
             #pragma omp parallel for schedule(dynamic) default(none) \
             shared(start, end, blockmodel, graph, vertex_moves, delta_entropy, block_assignment, moves)
